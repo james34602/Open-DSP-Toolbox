@@ -10,10 +10,10 @@ User must specify desired complex frequency response and inital weights to weigh
 ![Diagram1](./graph/LPF.svg)
 
 ## Passband linear phase band pass IIR filter
-![Diagram1](./graph/BPF.svg)
+![Diagram2](./graph/BPF.svg)
 
 ## Passband linear phase arbitrary bands IIR filter
-![Diagram1](./graph/BPF_HPF.svg)
+![Diagram3](./graph/BPF_HPF.svg)
 
 # Discussion
 
