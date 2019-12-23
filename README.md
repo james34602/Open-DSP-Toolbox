@@ -17,6 +17,9 @@ Equation error method IIR filter design algorithm is written by Mathias C. Lang
 ## Passband linear phase arbitrary bands IIR filter
 ![Diagram3](./graph/BPF_HPF.svg)
 
+## Group delay only IIR filter (Allpass filter)
+![Diagram4](./graph/APF.svg)
+
 # Discussion
 
 ## FDLS vs Eqnerror
