@@ -1,5 +1,5 @@
 # Least square IIR filter design
-## Design IIR filter with least square based method
+## Design IIR filter & system identification with least square based method in C
 
 Compute L2 solution by iteratively solving overdetermined linear equations.
 
