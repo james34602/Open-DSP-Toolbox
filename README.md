@@ -20,13 +20,13 @@ Equation error method IIR filter design algorithm is written by Mathias C. Lang
 # Discussion
 
 ## FDLS vs Eqnerror
-All 3 methods design digital filter base on arbitrary frequency grid and gain vector as input.
+Both FDLS and eqnerror design digital filter base on arbitrary frequency grid and gain vector as input.
 
 From filter designer perspective, this property is very desirable.
 
-Designer once have to craft frequency response equations on s-plane and convert them to z-plane using bilinear transform.
+Designers once have to craft frequency response equations on s-plane and convert them to z-plane using bilinear transform.
 
-Using these 3 methods, designers can convert their analog frequency requirements to digital IIR filter directly.
+With FDLS or eqnerror, designers can convert their analog frequency requirements to digital IIR filter directly without making their own equation.
 
 Frequency domain least square(FDLS) method did pretty good job at preserving high frequency of the analog filter.
 
