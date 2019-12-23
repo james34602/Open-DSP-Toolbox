@@ -50,6 +50,8 @@ if is_square_matrix(A)
 else
    return pinv(A) * vector;
 ```
+However, I still encourage user implement their own mldivide using LAPACK. Matrix preconditioner may available in some of their algorithms, making the solver become blazingly more robust.
+
 inv() can be implemented using LU decomposition, or can be calculated using determinant.
 
 pinv() is implemented using Singular value decomposition (SVD).
