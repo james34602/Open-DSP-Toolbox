@@ -685,7 +685,6 @@ int main()
 	const double tau = 18.0;
 	const int M = 14;
 	const int N = 11;
-	const double r = 0.98;
 	const int gridLength = 88;
 	int passband = 40;
 	int leftOver = gridLength - passband;
@@ -735,7 +734,6 @@ int main()
 	const int M = 25;
 	const int N = 8;
 	const double tau = 30.0;
-	const double r = 0.99;
 	const int gridLength = 92;
 	int passband = 10;
 	double *om = (double*)malloc(gridLength * sizeof(double));
@@ -838,6 +836,38 @@ int main()
 	free(om);
 	free(DRe);
 	free(DIm);
+	free(W);
+	return 0;
+}*/
+// Group delay IIR filter (Allpass filter)
+/*int main()
+{
+	int i;
+	const int M = 8;
+	const int N = 8;
+	const int gridLength = 16;
+	double *om = (double*)malloc(gridLength * sizeof(double));
+	linspace(0.0, 1.0, gridLength, om);
+	for (i = 0; i < gridLength; i++)
+		om[i] *= M_PI;
+	double *W = (double*)malloc(gridLength * sizeof(double));
+	for (i = 0; i < gridLength; i++)
+		W[i] = 1.0;
+	const double phRe[16] = { 0.999999999950737,0.945743258389046,0.941157214389909,0.909809309158055,-0.227591758407713,-0.971796125574726,-0.888320467971764,-0.541219446739069,-0.162711276430479,0.171833314590005,0.444273152842578,0.655424413655085,0.811190940466005,0.917693260986536,0.979664959694248,1.0 };
+	const double phIm[16] = { 0,-0.324914895286399,-0.33796907816533,0.415026530439625,-0.973756638747442,-0.235822582290091,0.459224069689757,0.840881389062365,0.986673725464686,0.985126038635165,0.89589138050509,0.755260774822106,0.584781376332966,0.397289666037134,0.20064039161462,0.0 };
+	EquationErrorIIR initSolution;
+	InitEquationErrorIIR(&initSolution, M, N, gridLength);
+	const int iterEqnErr = 2;
+	eqnerror(&initSolution, om, phRe, phIm, W, iterEqnErr);
+	printf("b=[");
+	for (i = 0; i < M + 1; i++)
+		printf("%1.17lf ", initSolution.b[i]);
+	printf("];a=[");
+	for (i = 0; i < N + 1; i++)
+		printf("%1.17lf ", initSolution.a[i]);
+	printf("];\n");
+	EquationErrorIIRFree(&initSolution);
+	free(om);
 	free(W);
 	return 0;
 }*/
