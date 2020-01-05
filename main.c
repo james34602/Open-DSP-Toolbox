@@ -16,6 +16,9 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
+#include <time.h>
+#include <vld.h>
+#include "cpoly.h"
 void xzlarf(int cols1, int rows1, int iv0, double tau, double C_data[], int ic0, int ldc, double work_data[])
 {
 	int lastv;
@@ -678,6 +681,472 @@ void eqnerror(EquationErrorIIR *iir, double *om, double *DReal, double *DImag, d
 		}
 	}
 }
+// Matlab + Octave style transfer function conversion function
+// Stress test proved, shouldn't leak memory/crash.
+// All function behaviour is very similar to octave
+// zp2sos
+void swap(double* a, double* b)
+{
+	double t = *a;
+	*a = *b;
+	*b = t;
+}
+void selectionSort(double arr[], int n)
+{
+	int i, j, min_idx;
+	for (i = 0; i < n - 1; i++)
+	{
+		min_idx = i;
+		for (j = i + 1; j < n; j++)
+			if (arr[j] < arr[min_idx])
+				min_idx = j;
+		swap(&arr[min_idx], &arr[i]);
+	}
+}
+void selectionSortAux(double arr[], double arr2[], int n)
+{
+	int i, j, min_idx;
+	for (i = 0; i < n - 1; i++)
+	{
+		min_idx = i;
+		for (j = i + 1; j < n; j++)
+			if (arr[j] < arr[min_idx])
+				min_idx = j;
+		swap(&arr[min_idx], &arr[i]);
+		swap(&arr2[min_idx], &arr2[i]);
+	}
+}
+int cplxpair(double *xRe, double *xIm, unsigned int xLen, double *sortedRe, double *sortedIm)
+{
+	unsigned int i, j;
+	double tol = 100.0 * DBL_EPSILON;
+	double *xcRe = (double*)malloc(xLen * sizeof(double));
+	double *xcIm = (double*)malloc(xLen * sizeof(double));
+	memcpy(xcRe, xRe, xLen * sizeof(double));
+	memcpy(xcIm, xIm, xLen * sizeof(double));
+	unsigned int *aryIdx = (int*)malloc(xLen * sizeof(int));
+	double *tmp1 = (double*)malloc(xLen * sizeof(double));
+	unsigned int index = 0;
+	while (1) // Odd number of entries remaining
+	{
+		for (i = 0; i < xLen; i++)
+		{
+			if (fabs(xcIm[i]) <= tol * sqrt(xcRe[i] * xcRe[i] + xcIm[i] * xcIm[i]))
+			{
+				aryIdx[index] = i;
+				tmp1[index++] = xcRe[i];
+			}
+		}
+		if ((xLen - index) % 2 != 0)
+		{
+			index = 0;
+			tol *= 10.0;
+			continue;
+		}
+		else
+			break;
+	}
+	index = 0;
+	for (i = 0; i < xLen; i++)
+	{
+		if (fabs(xcIm[i]) <= tol * sqrt(xcRe[i] * xcRe[i] + xcIm[i] * xcIm[i]))
+		{
+			aryIdx[index] = i;
+			tmp1[index++] = xcRe[i];
+		}
+	}
+	selectionSort(tmp1, index);
+	for (i = xLen - index; i < xLen; i++)
+	{
+		sortedRe[i] = tmp1[i - xLen + index];
+		sortedIm[i] = 0.0;
+	}
+	unsigned int loop = 0;
+	for (i = 0; i < index; i++)
+	{
+		for (unsigned int idx = 0; idx < xLen + loop; idx++)
+		{
+			if (idx == aryIdx[i])
+			{
+				for (j = idx - loop; j < xLen - 1; j++)
+				{
+					xcRe[j] = xcRe[j + 1];
+					xcIm[j] = xcIm[j + 1];
+				}
+				xLen--;
+				loop++;
+			}
+		}
+	}
+	if (!xLen)
+	{
+		free(xcRe);
+		free(xcIm);
+		free(aryIdx);
+		free(tmp1);
+		return -2;
+	}
+	if (xLen % 2 != 0) // Odd number of entries remaining
+	{
+		printf("Complex numbers can't be paired. ");
+		free(xcRe);
+		free(xcIm);
+		free(aryIdx);
+		free(tmp1);
+		return -1;
+	}
+	// Sort complex column-vector xc, based on its real part
+	selectionSortAux(xcRe, xcIm, xLen);
+	// Check real part pairs to see if imag parts are conjugates
+	unsigned int nxt_row = 0; // next row in y for results
+	double tmp2[2];
+	tol = 100.0 * DBL_EPSILON;
+	int previousFail = 0;
+	while (xLen)
+	{
+		unsigned int nn = 0;
+		for (i = 0; i < xLen; i++)
+			if (fabs(xcRe[i] - xcRe[0]) <= tol * sqrt(xcRe[i] * xcRe[i] + xcIm[i] * xcIm[i]))
+				aryIdx[nn++] = i;
+		if (nn <= 1 || nn > 2)
+		{
+			if (tol > 1e-5)
+				break; // Simply no complex numbers pair
+			tol *= 10.0;
+			printf("Complex numbers can't be paired, continue with larger tolerance\n");
+			previousFail = 1;
+			continue;
+		}
+		else
+		{
+			tol = 100.0 * DBL_EPSILON;
+			previousFail = 0;
+		}
+		for (i = 0; i < nn; i++)
+		{
+			tmp1[i] = xcIm[i];
+			tmp2[i] = xcRe[i];
+		}
+		selectionSortAux(tmp1, tmp2, nn);
+		sortedRe[nxt_row] = tmp2[1];
+		sortedIm[nxt_row] = -tmp1[1];
+		sortedRe[nxt_row + 1] = tmp2[1];
+		sortedIm[nxt_row + 1] = tmp1[1];
+		nxt_row += nn;
+		loop = 0;
+		for (i = 0; i < nn; i++)
+		{
+			for (unsigned int idx = 0; idx < xLen + loop; idx++)
+			{
+				if (idx == aryIdx[i])
+				{
+					for (j = idx - loop; j < xLen - 1; j++)
+					{
+						xcRe[j] = xcRe[j + 1];
+						xcIm[j] = xcIm[j + 1];
+					}
+					xLen--;
+					loop++;
+				}
+			}
+		}
+	}
+	free(xcRe);
+	free(xcIm);
+	free(aryIdx);
+	free(tmp1);
+	return 0;
+}
+int zp2sos(double *zRe, double *zIm, unsigned int zLen, double *pRe, double *pIm, unsigned int pLen, double *sos)
+{
+	unsigned int i;
+	const double thresh = 100 * DBL_EPSILON;
+	unsigned int nzc = 0, nzr = 0, npc = 0, npr = 0;
+	double *zcpRe = (double*)malloc(zLen * sizeof(double));
+	double *zcpIm = (double*)malloc(zLen * sizeof(double));
+	unsigned int nzrsec = 0, idx;
+	if (zLen)
+	{
+		cplxpair(zRe, zIm, zLen, zcpRe, zcpIm); // sort complex pairs, real roots at end
+		idx = zLen - 1;
+		while ((idx + 1) && fabs(zcpIm[idx]) < thresh) // determine no.of real values
+		{
+			nzrsec = nzrsec + 1;
+			idx = idx - 1;
+		}
+	}
+	unsigned int nzsect2 = zLen - nzrsec;
+	if (nzsect2 % 2 != 0)
+	{
+		printf("Odd number of zeros!");
+		free(zcpRe);
+		free(zcpIm);
+		return -1;
+	}
+	nzc = nzsect2 >> 1;
+	double *zcRe = (double*)malloc(nzc * sizeof(double));
+	double *zcIm = (double*)malloc(nzc * sizeof(double));
+	idx = 0;
+	for (i = 0; i < nzsect2; i++)
+	{
+		if ((i + 1) % 2 == 0)
+		{
+			zcRe[idx] = zcpRe[i];
+			zcIm[idx++] = zcpIm[i];
+		}
+	}
+	nzr = zLen - nzsect2;
+	double *zr = (double*)malloc((nzr + 1) * sizeof(double));
+	for (i = nzsect2; i < zLen; i++)
+		zr[i - nzsect2] = zcpRe[i];
+	free(zcpRe);
+	free(zcpIm);
+	zcpRe = (double*)malloc(pLen * sizeof(double));
+	zcpIm = (double*)malloc(pLen * sizeof(double));
+	nzrsec = 0;
+	if (pLen)
+	{
+		cplxpair(pRe, pIm, pLen, zcpRe, zcpIm); // sort complex pairs, real roots at end
+		idx = pLen - 1;
+		while ((idx + 1) && fabs(zcpIm[idx]) < thresh) // determine no.of real values
+		{
+			nzrsec = nzrsec + 1;
+			idx = idx - 1;
+		}
+	}
+	nzsect2 = pLen - nzrsec;
+	if (nzsect2 % 2 != 0)
+	{
+		printf("Odd number of zeros!");
+		free(zcpRe);
+		free(zcpIm);
+		free(zcRe);
+		free(zcIm);
+		free(zr);
+		return -1;
+	}
+	npc = nzsect2 >> 1;
+	double *pcRe = (double*)malloc(npc * sizeof(double));
+	double *pcIm = (double*)malloc(npc * sizeof(double));
+	idx = 0;
+	for (i = 0; i < nzsect2; i++)
+	{
+		if ((i + 1) % 2 == 0)
+		{
+			pcRe[idx] = zcpRe[i];
+			pcIm[idx++] = zcpIm[i];
+		}
+	}
+	npr = pLen - nzsect2;
+	double *pr = (double*)malloc((npr + 1) * sizeof(double));
+	for (i = nzsect2; i < pLen; i++)
+		pr[i - nzsect2] = zcpRe[i];
+	free(zcpRe);
+	free(zcpIm);
+
+	// Pair up real zeros:
+	double *zrms = 0, *zrp = 0;
+	if (nzr)
+	{
+		if (nzr % 2 != 0)
+		{
+			nzr++;
+			zr[nzr - 1] = 0.0;
+		}
+		nzrsec = nzr >> 1;
+		zrms = (double*)malloc(nzrsec * sizeof(double));
+		zrp = (double*)malloc(nzrsec * sizeof(double));
+		idx = 0;
+		for (i = 0; i < nzr; i++)
+		{
+			if ((i + 1) % 2 != 0)
+			{
+				zrms[idx] = -zr[i] - zr[i + 1];
+				zrp[idx++] = zr[i] * zr[i + 1];
+			}
+		}
+	}
+	else
+		nzrsec = 0;
+
+	// Pair up real poles:
+	unsigned int nprsec;
+	double *prms = 0, *prp = 0;
+	if (npr)
+	{
+		if (npr % 2 != 0)
+		{
+			npr++;
+			pr[npr - 1] = 0.0;
+		}
+		nprsec = npr >> 1;
+		prms = (double*)malloc(nprsec * sizeof(double));
+		prp = (double*)malloc(nprsec * sizeof(double));
+		idx = 0;
+		for (i = 0; i < npr; i++)
+		{
+			if ((i + 1) % 2 != 0)
+			{
+				prms[idx] = -pr[i] - pr[i + 1];
+				prp[idx++] = pr[i] * pr[i + 1];
+			}
+		}
+	}
+	else
+		nprsec = 0;
+	unsigned int nzrl = nzc + nzrsec; // index of last real zero section
+	unsigned int nprl = npc + nprsec; // index of last real pole section
+	unsigned int nsecs = max(nzrl, nprl);
+	// Convert complex zeros and poles to real 2nd-order section form:
+	for (i = 0; i < nsecs; i++)
+	{
+		sos[i * 6] = sos[i * 6 + 3] = 1.0;
+		if (i < nzc) // lay down a complex zero pair:
+		{
+			sos[i * 6 + 1] = -2.0 * zcRe[i];
+			sos[i * 6 + 2] = zcRe[i] * zcRe[i] + zcIm[i] * zcIm[i];
+		}
+		else if (i < nzrl) // lay down a pair of real zeros:
+		{
+			sos[i * 6 + 1] = zrms[i - nzc];
+			sos[i * 6 + 2] = zrp[i - nzc];
+		}
+		if (i < npc) // lay down a complex pole pair:
+		{
+			sos[i * 6 + 4] = -2.0 * pcRe[i];
+			sos[i * 6 + 5] = pcRe[i] * pcRe[i] + pcIm[i] * pcIm[i];
+		}
+		else if (i < nprl) // lay down a pair of real poles:
+		{
+			sos[i * 6 + 4] = prms[i - npc];
+			sos[i * 6 + 5] = prp[i - npc];
+		}
+	}
+	free(zcRe);
+	free(zcIm);
+	free(zr);
+	free(pcRe);
+	free(pcIm);
+	free(pr);
+	if (zrms)
+		free(zrms);
+	if (zrp)
+		free(zrp);
+	if (prms)
+		free(prms);
+	if (prp)
+		free(prp);
+	return nsecs;
+}
+int tf2sos(double *b, unsigned int bLen, double *a, unsigned int aLen, double **sos)
+{
+	// % Find Poles and Zeros
+	if (!aLen)
+	{
+		printf("Denominator cannot be empty\n");
+		return -1;
+	}
+	if (a[0] == 0.0)
+	{
+		printf("Denominator cannot be zero\n");
+		return -1;
+	}
+	unsigned int i;
+	double *bpolyRe = (double*)malloc(bLen * sizeof(double));
+	memcpy(bpolyRe, b, bLen * sizeof(double));
+	double *bpolyIm = (double*)malloc(bLen * sizeof(double));
+	memset(bpolyIm, 0, bLen * sizeof(double));
+	double *zRe = (double*)malloc(bLen * sizeof(double));
+	double *zIm = (double*)malloc(bLen * sizeof(double));
+	int zeroNumRoots = cpoly(bpolyRe, bpolyIm, bLen - 1, zRe, zIm);
+	free(bpolyRe);
+	free(bpolyIm);
+	if (zeroNumRoots < 0)
+		zeroNumRoots = 0;
+	double *apolyRe = (double*)malloc(aLen * sizeof(double));
+	memcpy(apolyRe, a, aLen * sizeof(double));
+	double *apolyIm = (double*)malloc(aLen * sizeof(double));
+	memset(apolyIm, 0, aLen * sizeof(double));
+	double *pRe = (double*)malloc(aLen * sizeof(double));
+	double *pIm = (double*)malloc(aLen * sizeof(double));
+	int poleNumRoots = cpoly(apolyRe, apolyIm, aLen - 1, pRe, pIm);
+	free(apolyRe);
+	free(apolyIm);
+	if (poleNumRoots < 0)
+		poleNumRoots = 0;
+	unsigned int myNSec = (unsigned int)ceil(max(zeroNumRoots, poleNumRoots) * 0.5);
+	*(sos) = (double*)malloc(myNSec * 6 * sizeof(double));
+	memset(*(sos), 0, myNSec * 6 * sizeof(double));
+	double firstNonZero = 0.0;
+	for (i = 0; i < bLen; i++)
+	{
+		if (b[i] != 0.0)
+		{
+			firstNonZero = b[i];
+			break;
+		}
+	}
+	double k = firstNonZero / a[0];
+	int numSections = zp2sos(zRe, zIm, zeroNumRoots, pRe, pIm, poleNumRoots, *(sos));
+	free(zRe);
+	free(zIm);
+	free(pRe);
+	free(pIm);
+	(*sos)[0] *= k;
+	(*sos)[1] *= k;
+	(*sos)[2] *= k;
+	return numSections;
+}
+double b1[26] = { 1.0012013530872574, -0.069720018620065285, -0.64673918227041816, -0.55757536000231844, 0.64295878194519718, 0.0094022197292261238, -0.18633856599165166, -0.4691258318656748, 0.4442598323878294, 0.072686761493298849, 0.13409918683169322, -0.12474411858102159, -0.056469100873046407, -0.22006840993047824, 0.26453367463948452, 0.26681588201565581, -0.067606603898450218, -0.32955314592250551, -0.044882442980331214, 0.14387132477091111, 0.019833889782182604, 0.028278334405851192, -0.045872655616353675, 0.0030224372295484503, -0.010703554301967084, -0.01981380052058232 };
+double a1[21] = { 1, -0.090427174787398881, -0.47635858646483303, -0.79639935556516706, 0.62662985386978876, -0.019252273869171402, 0.373352197323154, -0.58121888934590016, 0.27218273634698931, -0.37198496466002778, 0.39903095219475698, -0.17678573181944943, 0.3548203543708196, -0.37239762221395434, 0.18161476755467335, -0.073080294381017097, 0.18146689079210729, -0.27364314013427843, 0.040104152008789251, -0.012082609399677246, 0.067263997327562164 };
+double b2[26] = { 0.038517370142648298, 0.0010386859687012873, -0.086098050068718457, 0.085348772667813211, -0.042117970125450793, -0.020679539631744896, 0.039125127393445806, 0.014664702676612512, -0.018297543100421525, 0.00016705554654026047, 0.0087178531905720818, -0.018730936858442637, 0.046656201120630895, -0.072544732817444543, 0.024386405662560805, 0.049948360456525134, -0.063828258123357837, 0.041860387613236426, -0.0018425830278492841, 0.01337618002356265, -0.060683481429640203, 0.062629730807545816, -0.035835930065334823, 0.022974602720135216, -0.014730817467697822, 0.0063606915280241668 };
+double a2[21] = { 1, -2.6440838619465326, 3.0666426788538801, -2.7142888887443455, 2.4389834313374412, -2.3154425986172842, 2.7314555000350795, -2.7124702506075016, 1.8813573943472346, -1.1376376277240625, 0.56964901530213952, -0.0782985386319653, -0.25201252932238738, 0.31903755140407497, -0.17444732353420295, 0.19097011797437338, -0.31444819363505749, 0.3308160548842019, -0.1889454622592838, 0.0030697514846655016, 0.034858537587783761 };
+double b3[12] = { 0.696176763775895,0.555547146510916,0.04300074335326,0.16659501834806,0.586677501045686,0.509389108644681,0.999366940130689,0.978550763831388,0.764782787743648,0.234238613392499,0.736905912661616,0.666684634980556 };
+double a3[19] = { 1,0.248893139221197,0.342181213844591,0.219319017669164,0.362032698557814,0.00710355493812713,0.234346093282161,0.112449449721568,0.297554824174743,0.0863682294423248,0.0203849686160456,0.112731654169387,0.053411714901486,0.182745972557301,0.0891860729537674,0.221308153546729,0.0284603569042661,0.0389974631641958,0.129727551826713 };
+double b4[4] = { -0.3, 0.2, 0.01, -2.15651 };
+double a4[4] = { -7.0, 0.0, 0.0, 0.0 };
+// tf2sos tests
+/*int main()
+{
+	int i, j;
+	double *sos;
+	int numSecs = tf2sos(b1, 26, a1, 21, &sos);
+	for (i = 0; i < numSecs; i++)
+	{
+		for (j = 0; j < 6; j++)
+			printf("%1.14lf ", sos[i * 6 + j]);
+		printf("\n");
+	}
+	free(sos);
+	printf("\n");
+	numSecs = tf2sos(b2, 26, a2, 21, &sos);
+	for (i = 0; i < numSecs; i++)
+	{
+		for (j = 0; j < 6; j++)
+			printf("%1.14lf ", sos[i * 6 + j]);
+		printf("\n");
+	}
+	free(sos);
+	printf("\n");
+	numSecs = tf2sos(b3, 12, a3, 19, &sos);
+	for (i = 0; i < numSecs; i++)
+	{
+		for (j = 0; j < 6; j++)
+			printf("%1.14lf ", sos[i * 6 + j]);
+		printf("\n");
+	}
+	free(sos);
+	printf("\n");
+	numSecs = tf2sos(b4, 4, a4, 4, &sos);
+	for (i = 0; i < numSecs; i++)
+	{
+		for (j = 0; j < 6; j++)
+			printf("%1.14lf ", sos[i * 6 + j]);
+		printf("\n");
+	}
+	free(sos);
+	return 0;
+}*/
 // Wideband passband linear phase low pass filter
 int main()
 {
@@ -720,6 +1189,17 @@ int main()
 	for (i = 0; i < N + 1; i++)
 		printf("%1.17lf ", initSolution.a[i]);
 	printf("];\n");
+	// Convert to SOS form
+	double *sos;
+	int numSecs = tf2sos(initSolution.b, M + 1, initSolution.a, N + 1, &sos);
+	for (i = 0; i < numSecs; i++)
+	{
+		for (int j = 0; j < 6; j++)
+			printf("%1.14lf ", sos[i * 6 + j]);
+		printf("\n");
+	}
+	// Free memory
+	free(sos);
 	EquationErrorIIRFree(&initSolution);
 	free(om);
 	free(DRe);
@@ -771,6 +1251,17 @@ int main()
 	for (i = 0; i < N + 1; i++)
 		printf("%1.17lf ", initSolution.a[i]);
 	printf("]);\n");
+	// Convert to SOS form
+	double *sos;
+	int numSecs = tf2sos(initSolution.b, M + 1, initSolution.a, N + 1, &sos);
+	for (i = 0; i < numSecs; i++)
+	{
+		for (int j = 0; j < 6; j++)
+			printf("%1.14lf ", sos[i * 6 + j]);
+		printf("\n");
+	}
+	// Free memory
+	free(sos);
 	EquationErrorIIRFree(&initSolution);
 	free(om);
 	free(DRe);
@@ -832,6 +1323,17 @@ int main()
 	for (i = 0; i < N + 1; i++)
 		printf("%1.17lf ", initSolution.a[i]);
 	printf("]);\n");
+	// Convert to SOS form
+	double *sos;
+	int numSecs = tf2sos(initSolution.b, M + 1, initSolution.a, N + 1, &sos);
+	for (i = 0; i < numSecs; i++)
+	{
+		for (int j = 0; j < 6; j++)
+			printf("%1.14lf ", sos[i * 6 + j]);
+		printf("\n");
+	}
+	// Free memory
+	free(sos);
 	EquationErrorIIRFree(&initSolution);
 	free(om);
 	free(DRe);
@@ -866,6 +1368,17 @@ int main()
 	for (i = 0; i < N + 1; i++)
 		printf("%1.17lf ", initSolution.a[i]);
 	printf("];\n");
+	// Convert to SOS form
+	double *sos;
+	int numSecs = tf2sos(initSolution.b, M + 1, initSolution.a, N + 1, &sos);
+	for (i = 0; i < numSecs; i++)
+	{
+		for (int j = 0; j < 6; j++)
+			printf("%1.14lf ", sos[i * 6 + j]);
+		printf("\n");
+	}
+	// Free memory
+	free(sos);
 	EquationErrorIIRFree(&initSolution);
 	free(om);
 	free(W);
