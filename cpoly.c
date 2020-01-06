@@ -1,3 +1,16 @@
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program; see the file COPYING. If not, see
+// <https://www.gnu.org/licenses/>.
 // Jenkins-Traub complex polynomial root finder.
 #include "cpoly.h"
 #include <math.h>
@@ -359,7 +372,7 @@ static double scale(const int nn, const double pt[])
 	fn_val = pow(DBL_RADIX, pexponent);
 	return fn_val;
 }
-int cpoly(double *opr, double *opi, int degree, double *zeror, double *zeroi)
+int cpoly(double *polyRe, double *polyIm, int degree, double *zeror, double *zeroi)
 {
 	int cnt1, cnt2, idnn2, i, conv, j, jj, n, nm1;
 	double xx, yy, cosr, sinr, xxx, zr, zi, bnd, xni, t1, t2;
@@ -373,6 +386,10 @@ int cpoly(double *opr, double *opi, int degree, double *zeror, double *zeroi)
 		return -2;
 	// Remove leading zeros
 	int counter = 0;
+	double *opr = (double*)malloc((degree + 1) * sizeof(double));
+	double *opi = (double*)malloc((degree + 1) * sizeof(double));
+	memcpy(opr, polyRe, (degree + 1) * sizeof(double));
+	memcpy(opi, polyIm, (degree + 1) * sizeof(double));
 	for (i = 0; i < degree; i++)
 	{
 		if (opr[i] == 0.0 && opi[i] == 0.0)
@@ -447,6 +464,8 @@ int cpoly(double *opr, double *opi, int degree, double *zeror, double *zeroi)
 			free(qhi);
 			free(shr);
 			free(shi);
+			free(opr);
+			free(opi);
 			return degree;
 		}
 
@@ -550,6 +569,8 @@ int cpoly(double *opr, double *opi, int degree, double *zeror, double *zeroi)
 			free(qhi);
 			free(shr);
 			free(shi);
+			free(opr);
+			free(opi);
 			return degree;
 		}
 	}
@@ -564,5 +585,7 @@ int cpoly(double *opr, double *opi, int degree, double *zeror, double *zeroi)
 	free(qhi);
 	free(shr);
 	free(shi);
+	free(opr);
+	free(opi);
 	return degree;
 }

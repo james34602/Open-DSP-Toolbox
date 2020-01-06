@@ -106,4 +106,4 @@ Known as roots() in Matlab / Octave.
 General-purpose complex root finder, the complex polynomial calculation is permitted.
 
 #### Use
-Wide range of polynomial root finding applications.
+Wide range of polynomial root finding applications, for instance, digital filter stability check.

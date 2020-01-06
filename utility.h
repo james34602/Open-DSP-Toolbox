@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program; see the file COPYING. If not, see
 // <https://www.gnu.org/licenses/>.
-#ifndef CPOLY_H
-#define CPOLY_H
-int cpoly(double *opr, double *opi, int degree, double *zeror, double *zeroi);
+#ifndef UTILITY_H
+#define UTILITY_H
+extern void linspace(double a, double b, const int n, double *y);
 #endif

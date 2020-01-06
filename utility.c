@@ -11,7 +11,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program; see the file COPYING. If not, see
 // <https://www.gnu.org/licenses/>.
-#ifndef CPOLY_H
-#define CPOLY_H
-int cpoly(double *opr, double *opi, int degree, double *zeror, double *zeroi);
-#endif
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+void linspace(double a, double b, const int n, double *y)
+{
+	int i;
+	double d = (b - a) / (double)(n - 1);
+	for (i = 0; i < n; i++)
+		y[i] = a + i * d;
+}

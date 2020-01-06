@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program; see the file COPYING. If not, see
 // <https://www.gnu.org/licenses/>.
-#ifndef CPOLY_H
-#define CPOLY_H
-int cpoly(double *opr, double *opi, int degree, double *zeror, double *zeroi);
+#ifndef SOLVELINEARSYSTEM_H
+#define SOLVELINEARSYSTEM_H
+extern void mldivide(const double A[], const int rows1, const int cols1, const double b[], const int rows2, const int cols2, double Y[], int Y_size[2]);
 #endif

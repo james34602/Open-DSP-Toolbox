@@ -11,7 +11,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program; see the file COPYING. If not, see
 // <https://www.gnu.org/licenses/>.
-#ifndef CPOLY_H
-#define CPOLY_H
-int cpoly(double *opr, double *opi, int degree, double *zeror, double *zeroi);
-#endif
+extern void LLbitReversalTbl(unsigned *dst, int n);
+extern void LLsinHalfTbl(double *dst, int n);
+extern void LLdiscreteHartley(double *A, const int nPoints, const double *sinTab);
